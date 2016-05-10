@@ -1,8 +1,10 @@
-#include <iostream>
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
+#include <iostream>
+#include <stdlib.h>
 
 using std::cout;
 using std::cin;
@@ -22,6 +24,24 @@ char *getFilename(const char *filepath){
 	return temp;
 }
 
+void copy(int des1, int des2, int filesize){
+	cout<<"size:" << filesize <<endl;
+
+    char *src = (char*)mmap(NULL, filesize, PROT_READ, MAP_PRIVATE, des1, 0);
+
+    
+    ftruncate(des2, filesize);
+
+    char *dest = (char*)mmap(NULL, filesize, PROT_WRITE, MAP_SHARED, des2, 0);
+	
+
+    memcpy(dest, src, filesize);
+    munmap(dest, filesize);
+	
+	close(des1);
+    close(des2);
+
+}
 
 int main(int argc, char* argv[]){
 
@@ -34,9 +54,7 @@ int main(int argc, char* argv[]){
 	struct stat buf2;
 	const char *filepath_1 = argv[1];
 	const char *filepath_2 = argv[2];
-	int filedes_1,filedes_2;
-	int buf_size = 1024;
-	char buf[buf_size];
+	int filedes_1, filedes_2;
 
 	if (stat(filepath_1,&buf1) < 0){
 		cout<<"File1 not exists!"<<endl;
@@ -64,12 +82,10 @@ int main(int argc, char* argv[]){
 			if(stat(file2_name,&buf2)<0){
 				if(access(filepath_2,F_OK)<0){
 					cout<<"Dir not exiets"<<endl;
-					close(filedes_1);
 					return 1;
 				}else{
-					if((filedes_2 = open(file2_name,O_WRONLY|O_CREAT|O_TRUNC,0644))<0){
+					if((filedes_2 = open(file2_name,O_RDWR|O_CREAT|O_TRUNC,0644))<0){
 						cout<<"Create File error!"<<endl;
-						close(filedes_1);
 						return 1;
 					}
 				}
@@ -78,18 +94,15 @@ int main(int argc, char* argv[]){
 				char c;
 				cin >> c;
 				if(c != 'y' || c != 'Y'){
-					close(filedes_1);
 					return 1;
 				}
 				//get the file descriptor
-				filedes_2 = open(file2_name,O_TRUNC);
+				filedes_2 = open(file2_name, O_RDWR | O_TRUNC);
 			}
 		}else{
 			if(access(filepath_2,F_OK)<0){
-				if((filedes_2=open(filepath_2,O_WRONLY|O_CREAT|O_TRUNC,0644))<0){
+				if((filedes_2=open(filepath_2,O_RDWR|O_CREAT|O_TRUNC,0644))<0){
 					cout<<"Create File Error!"<<endl;
-					close(filedes_1);
-					close(filedes_2);
 					return 1;
 				}
 			}else{
@@ -97,26 +110,15 @@ int main(int argc, char* argv[]){
 				char c;
 				cin >> c;
 				if(c != 'y' || c != 'Y'){
-					close(filedes_1);
 					return 1;
 				}
 				//get the file descriptor
-				filedes_2 = open(filepath_2,O_TRUNC);
+				filedes_2 = open(filepath_2,O_RDWR | O_TRUNC);
 			}
 		}
 	}
 
-	int i;
-	while(( i = read(filedes_1,buf,buf_size)) > 0){
-		if((write(filedes_2, buf, i)) != i){
-			cout << "Write to file2 error" << endl;
-			close(filedes_1);
-			close(filedes_2);
-			return 1;
-		}
-	}
+	copy(filedes_1,filedes_2,buf1.st_size);
 
-	close(filedes_1);
-	close(filedes_2);
 	return 0;
 }
